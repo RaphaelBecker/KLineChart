@@ -3,7 +3,7 @@ import { rollup } from 'rollup'
 
 import { createInputConfig, createOutputConfig, version, env } from './config.js'
 
-async function build ({ index, replaceValues, fileName, format, parentDir, name }) {
+async function build({ index, replaceValues, fileName, format, parentDir, name }) {
   const text = `version ${version}${env ? ` ${env} ` : ' '}${format} file`
 
   console.log(`Start building ${text}...\n`)
@@ -19,7 +19,7 @@ async function build ({ index, replaceValues, fileName, format, parentDir, name 
     console.log(styleText('green', `\n✔ Compiled ${text} successfully.\n`))
     console.log(`${styleText('green', '✔')} Done in ${((new Date().getTime() - startTime) / 1000 / 60).toFixed(2)}s.\n`)
   } catch (err) {
-    console.log(`\n\n${styleText('red', err)}\n`)
+    console.log(`\n\n${styleText('red', String(err))}\n`)
     console.log(styleText('red', `✖️ Failed to compile ${text}.\n`))
     process.exit(1)
   }

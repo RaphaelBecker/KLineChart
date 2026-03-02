@@ -109,6 +109,10 @@
   "pnpm": {
     "overrides": {
       "@rollup/plugin-eslint>eslint": "$eslint"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "vue-demi"
+    ]
   }
 }

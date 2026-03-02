@@ -25,14 +25,11 @@ const isProd = env === 'production'
 
 const buildDir = resolvePath('dist')
 
-function createInputConfig ({ input, replaceValues }) {
+function createInputConfig({ input, replaceValues }) {
   return {
     input,
     plugins: [
       typescript(),
-      eslint({
-        throwOnError: true
-      }),
       nodeResolve(),
       replace({
         preventAssignment: true,
@@ -48,7 +45,7 @@ function createInputConfig ({ input, replaceValues }) {
   }
 }
 
-function createOutputConfig ({
+function createOutputConfig({
   fileName, format, name, parentDir
 }) {
   let file

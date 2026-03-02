@@ -365,7 +365,7 @@ export default class StoreImp implements Store {
     figure: null
   }
 
-  constructor (chart: Chart, options?: Options) {
+  constructor(chart: Chart, options?: Options) {
     this._chart = chart
     this._calcOptimalBarSpace()
     this._lastBarRightSideDiffBarCount = this._offsetRightDistance / this._barSpace
@@ -393,14 +393,16 @@ export default class StoreImp implements Store {
 
     this._taskScheduler = new TaskScheduler(() => {
       this._chart.layout({
+        measureHeight: true,
         measureWidth: true,
         update: true,
-        buildYAxisTick: true
+        buildYAxisTick: true,
+        forceBuildYAxisTick: true
       })
     })
   }
 
-  setStyles (value: string | DeepPartial<Styles>): void {
+  setStyles(value: string | DeepPartial<Styles>): void {
     let styles: Nullable<DeepPartial<Styles>> = null
     if (isString(value)) {
       styles = getExtensionStyles(value)
@@ -428,27 +430,27 @@ export default class StoreImp implements Store {
     }
   }
 
-  getStyles (): Styles { return this._styles }
+  getStyles(): Styles { return this._styles }
 
-  setFormatter (formatter: Partial<Formatter>): void {
+  setFormatter(formatter: Partial<Formatter>): void {
     merge(this._formatter, formatter)
   }
 
-  getFormatter (): Formatter { return this._formatter }
+  getFormatter(): Formatter { return this._formatter }
 
-  getInnerFormatter (): {
+  getInnerFormatter(): {
     formatDate: (timestamp: number, template: string, type: FormatDateType) => string
     formatBigNumber: FormatBigNumber,
     formatExtendText: FormatExtendText
-    } {
+  } {
     return this._innerFormatter
   }
 
-  setLocale (locale: string): void { this._locale = locale }
+  setLocale(locale: string): void { this._locale = locale }
 
-  getLocale (): string { return this._locale }
+  getLocale(): string { return this._locale }
 
-  setTimezone (timezone: string): void {
+  setTimezone(timezone: string): void {
     if (
       !isValid(this._dateTimeFormat) ||
       (this.getTimezone() !== timezone)
@@ -477,23 +479,23 @@ export default class StoreImp implements Store {
     }
   }
 
-  getTimezone (): string { return this._dateTimeFormat.resolvedOptions().timeZone }
+  getTimezone(): string { return this._dateTimeFormat.resolvedOptions().timeZone }
 
-  getDateTimeFormat (): Intl.DateTimeFormat {
+  getDateTimeFormat(): Intl.DateTimeFormat {
     return this._dateTimeFormat
   }
 
-  setThousandsSeparator (thousandsSeparator: Partial<ThousandsSeparator>): void {
+  setThousandsSeparator(thousandsSeparator: Partial<ThousandsSeparator>): void {
     merge(this._thousandsSeparator, thousandsSeparator)
   }
 
-  getThousandsSeparator (): ThousandsSeparator { return this._thousandsSeparator }
+  getThousandsSeparator(): ThousandsSeparator { return this._thousandsSeparator }
 
-  setDecimalFold (decimalFold: Partial<DecimalFold>): void { merge(this._decimalFold, decimalFold) }
+  setDecimalFold(decimalFold: Partial<DecimalFold>): void { merge(this._decimalFold, decimalFold) }
 
-  getDecimalFold (): DecimalFold { return this._decimalFold }
+  getDecimalFold(): DecimalFold { return this._decimalFold }
 
-  setSymbol (symbol: PickPartial<SymbolInfo, 'pricePrecision' | 'volumePrecision'>): void {
+  setSymbol(symbol: PickPartial<SymbolInfo, 'pricePrecision' | 'volumePrecision'>): void {
     this.resetData(() => {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment -- ignore
       // @ts-expect-error
@@ -507,33 +509,33 @@ export default class StoreImp implements Store {
     })
   }
 
-  getSymbol (): Nullable<SymbolInfo> {
+  getSymbol(): Nullable<SymbolInfo> {
     return this._symbol
   }
 
-  setPeriod (period: Period): void {
+  setPeriod(period: Period): void {
     this.resetData(() => {
       this._period = period
     })
   }
 
-  getPeriod (): Nullable<Period> {
+  getPeriod(): Nullable<Period> {
     return this._period
   }
 
-  getDataList (): KLineData[] {
+  getDataList(): KLineData[] {
     return this._dataList
   }
 
-  getVisibleRangeDataList (): VisibleRangeData[] {
+  getVisibleRangeDataList(): VisibleRangeData[] {
     return this._visibleRangeDataList
   }
 
-  getVisibleRangeHighLowPrice (): Array<{ price: number; x: number }> {
+  getVisibleRangeHighLowPrice(): Array<{ price: number; x: number }> {
     return this._visibleRangeHighLowPrice
   }
 
-  private _addData (
+  private _addData(
     data: KLineData | KLineData[],
     type: DataLoadType,
     more?: DataLoadMore
@@ -616,13 +618,13 @@ export default class StoreImp implements Store {
     }
   }
 
-  setDataLoader (dataLoader: DataLoader): void {
+  setDataLoader(dataLoader: DataLoader): void {
     this.resetData(() => {
       this._dataLoader = dataLoader
     })
   }
 
-  private _calcOptimalBarSpace (): void {
+  private _calcOptimalBarSpace(): void {
     const specialBarSpace = 4
     const ratio = 1 - BAR_GAP_RATIO * Math.atan(Math.max(specialBarSpace, this._barSpace) - specialBarSpace) / (Math.PI * 0.5)
     let gapBarSpace = Math.min(Math.floor(this._barSpace * ratio), Math.floor(this._barSpace))
@@ -632,7 +634,7 @@ export default class StoreImp implements Store {
     this._gapBarSpace = Math.max(1, gapBarSpace)
   }
 
-  private _adjustVisibleRange (): void {
+  private _adjustVisibleRange(): void {
     const totalBarCount = this._dataList.length
     const visibleBarCount = this._totalBarSpace / this._barSpace
 
@@ -712,7 +714,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  private _processDataLoad (type: DataLoadType): void {
+  private _processDataLoad(type: DataLoadType): void {
     if (!this._loading && isValid(this._dataLoader) && isValid(this._symbol) && isValid(this._period)) {
       this._loading = true
       const params: DataLoaderGetBarsParams = {
@@ -751,7 +753,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  private _processDataUnsubscribe (): void {
+  private _processDataUnsubscribe(): void {
     if (isValid(this._dataLoader) && isValid(this._symbol) && isValid(this._period)) {
       this._dataLoader.unsubscribeBar?.({
         symbol: this._symbol,
@@ -760,14 +762,14 @@ export default class StoreImp implements Store {
     }
   }
 
-  resetData (fn?: () => void): void {
+  resetData(fn?: () => void): void {
     this._processDataUnsubscribe()
     fn?.()
     this._loading = false
     this._processDataLoad('init')
   }
 
-  getBarSpace (): BarSpace {
+  getBarSpace(): BarSpace {
     return {
       bar: this._barSpace,
       halfBar: this._barSpace / 2,
@@ -776,7 +778,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  setBarSpace (barSpace: number, adjustBeforeFunc?: () => void): void {
+  setBarSpace(barSpace: number, adjustBeforeFunc?: () => void): void {
     if (barSpace < BarSpaceLimitConstants.MIN || barSpace > BarSpaceLimitConstants.MAX || this._barSpace === barSpace) {
       return
     }
@@ -793,7 +795,7 @@ export default class StoreImp implements Store {
     })
   }
 
-  setTotalBarSpace (totalSpace: number): void {
+  setTotalBarSpace(totalSpace: number): void {
     if (this._totalBarSpace !== totalSpace) {
       this._totalBarSpace = totalSpace
       this._adjustVisibleRange()
@@ -801,7 +803,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  setOffsetRightDistance (distance: number, isUpdate?: boolean): this {
+  setOffsetRightDistance(distance: number, isUpdate?: boolean): this {
     this._offsetRightDistance = this._scrollLimitRole === 'distance' ? Math.min(this._maxOffsetDistance.right, distance) : distance
     this._lastBarRightSideDiffBarCount = this._offsetRightDistance / this._barSpace
     if (isUpdate ?? false) {
@@ -817,51 +819,51 @@ export default class StoreImp implements Store {
     return this
   }
 
-  getInitialOffsetRightDistance (): number {
+  getInitialOffsetRightDistance(): number {
     return this._offsetRightDistance
   }
 
-  getOffsetRightDistance (): number {
+  getOffsetRightDistance(): number {
     return Math.max(0, this._lastBarRightSideDiffBarCount * this._barSpace)
   }
 
-  getLastBarRightSideDiffBarCount (): number {
+  getLastBarRightSideDiffBarCount(): number {
     return this._lastBarRightSideDiffBarCount
   }
 
-  setLastBarRightSideDiffBarCount (barCount: number): void {
+  setLastBarRightSideDiffBarCount(barCount: number): void {
     this._lastBarRightSideDiffBarCount = barCount
   }
 
-  setMaxOffsetLeftDistance (distance: number): void {
+  setMaxOffsetLeftDistance(distance: number): void {
     this._scrollLimitRole = 'distance'
     this._maxOffsetDistance.left = distance
   }
 
-  setMaxOffsetRightDistance (distance: number): void {
+  setMaxOffsetRightDistance(distance: number): void {
     this._scrollLimitRole = 'distance'
     this._maxOffsetDistance.right = distance
   }
 
-  setLeftMinVisibleBarCount (barCount: number): void {
+  setLeftMinVisibleBarCount(barCount: number): void {
     this._scrollLimitRole = 'bar_count'
     this._minVisibleBarCount.left = barCount
   }
 
-  setRightMinVisibleBarCount (barCount: number): void {
+  setRightMinVisibleBarCount(barCount: number): void {
     this._scrollLimitRole = 'bar_count'
     this._minVisibleBarCount.right = barCount
   }
 
-  getVisibleRange (): VisibleRange {
+  getVisibleRange(): VisibleRange {
     return this._visibleRange
   }
 
-  startScroll (): void {
+  startScroll(): void {
     this._startLastBarRightSideDiffBarCount = this._lastBarRightSideDiffBarCount
   }
 
-  scroll (distance: number): void {
+  scroll(distance: number): void {
     if (!this._scrollEnabled) {
       return
     }
@@ -884,18 +886,18 @@ export default class StoreImp implements Store {
     }
   }
 
-  getDataByDataIndex (dataIndex: number): Nullable<KLineData> {
+  getDataByDataIndex(dataIndex: number): Nullable<KLineData> {
     return this._dataList[dataIndex] ?? null
   }
 
-  coordinateToFloatIndex (x: number): number {
+  coordinateToFloatIndex(x: number): number {
     const dataCount = this._dataList.length
     const deltaFromRight = (this._totalBarSpace - x) / this._barSpace
     const index = dataCount + this._lastBarRightSideDiffBarCount - deltaFromRight
     return Math.round(index * 1000000) / 1000000
   }
 
-  dataIndexToTimestamp (dataIndex: number): Nullable<number> {
+  dataIndexToTimestamp(dataIndex: number): Nullable<number> {
     const length = this._dataList.length
     if (length === 0) {
       return null
@@ -959,7 +961,7 @@ export default class StoreImp implements Store {
     return null
   }
 
-  timestampToDataIndex (timestamp: number): number {
+  timestampToDataIndex(timestamp: number): number {
     const length = this._dataList.length
     if (length === 0) {
       return 0
@@ -1017,17 +1019,17 @@ export default class StoreImp implements Store {
     return binarySearchNearest(this._dataList, 'timestamp', timestamp)
   }
 
-  dataIndexToCoordinate (dataIndex: number): number {
+  dataIndexToCoordinate(dataIndex: number): number {
     const dataCount = this._dataList.length
     const deltaFromRight = dataCount + this._lastBarRightSideDiffBarCount - dataIndex
     return Math.floor(this._totalBarSpace - (deltaFromRight - 0.5) * this._barSpace + 0.5)
   }
 
-  coordinateToDataIndex (x: number): number {
+  coordinateToDataIndex(x: number): number {
     return Math.ceil(this.coordinateToFloatIndex(x)) - 1
   }
 
-  zoom (scale: number, coordinate: Nullable<Partial<Coordinate>>, position: 'main' | 'xAxis'): void {
+  zoom(scale: number, coordinate: Nullable<Partial<Coordinate>>, position: 'main' | 'xAxis'): void {
     if (!this._zoomEnabled) {
       return
     }
@@ -1055,15 +1057,15 @@ export default class StoreImp implements Store {
     }
   }
 
-  setZoomEnabled (enabled: boolean): void {
+  setZoomEnabled(enabled: boolean): void {
     this._zoomEnabled = enabled
   }
 
-  isZoomEnabled (): boolean {
+  isZoomEnabled(): boolean {
     return this._zoomEnabled
   }
 
-  setZoomAnchor (anchor: ZoomAnchorType | Partial<ZoomAnchor>): void {
+  setZoomAnchor(anchor: ZoomAnchorType | Partial<ZoomAnchor>): void {
     if (isString(anchor)) {
       this._zoomAnchor.main = anchor
       this._zoomAnchor.xAxis = anchor
@@ -1077,19 +1079,19 @@ export default class StoreImp implements Store {
     }
   }
 
-  getZoomAnchor (): ZoomAnchor {
+  getZoomAnchor(): ZoomAnchor {
     return { ...this._zoomAnchor }
   }
 
-  setScrollEnabled (enabled: boolean): void {
+  setScrollEnabled(enabled: boolean): void {
     this._scrollEnabled = enabled
   }
 
-  isScrollEnabled (): boolean {
+  isScrollEnabled(): boolean {
     return this._scrollEnabled
   }
 
-  setCrosshair (
+  setCrosshair(
     crosshair?: Crosshair,
     options?: { notInvalidate?: boolean, notExecuteAction?: boolean, forceInvalidate?: boolean }
   ): void {
@@ -1129,22 +1131,22 @@ export default class StoreImp implements Store {
     }
   }
 
-  getCrosshair (): Crosshair {
+  getCrosshair(): Crosshair {
     return this._crosshair
   }
 
-  executeAction (type: ActionType, data?: unknown): void {
+  executeAction(type: ActionType, data?: unknown): void {
     this._actions.get(type)?.execute(data)
   }
 
-  subscribeAction (type: ActionType, callback: ActionCallback): void {
+  subscribeAction(type: ActionType, callback: ActionCallback): void {
     if (!this._actions.has(type)) {
       this._actions.set(type, new Action())
     }
     this._actions.get(type)?.subscribe(callback)
   }
 
-  unsubscribeAction (type: ActionType, callback?: ActionCallback): void {
+  unsubscribeAction(type: ActionType, callback?: ActionCallback): void {
     const action = this._actions.get(type)
     if (isValid(action)) {
       action.unsubscribe(callback)
@@ -1154,12 +1156,12 @@ export default class StoreImp implements Store {
     }
   }
 
-  hasAction (type: ActionType): boolean {
+  hasAction(type: ActionType): boolean {
     const action = this._actions.get(type)
     return isValid(action) && !action.isEmpty()
   }
 
-  private _sortIndicators (paneId?: string): void {
+  private _sortIndicators(paneId?: string): void {
     if (isString(paneId)) {
       this._indicators.get(paneId)?.sort((i1, i2) => i1.zLevel - i2.zLevel)
     } else {
@@ -1169,7 +1171,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  private _calcIndicator (data: IndicatorImp | IndicatorImp[]): void {
+  private _calcIndicator(data: IndicatorImp | IndicatorImp[]): void {
     let indicators: IndicatorImp[] = []
     indicators = indicators.concat(data)
     if (indicators.length > 0) {
@@ -1181,7 +1183,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  addIndicator (create: PickRequired<IndicatorCreate, 'id' | 'name'>, paneId: string, isStack: boolean): boolean {
+  addIndicator(create: PickRequired<IndicatorCreate, 'id' | 'name'>, paneId: string, isStack: boolean): boolean {
     const { name } = create
     const filterIndicators = this.getIndicatorsByFilter(create)
     if (filterIndicators.length > 0) {
@@ -1205,11 +1207,11 @@ export default class StoreImp implements Store {
     return true
   }
 
-  getIndicatorsByPaneId (paneId: string): IndicatorImp[] {
+  getIndicatorsByPaneId(paneId: string): IndicatorImp[] {
     return this._indicators.get(paneId) ?? []
   }
 
-  getIndicatorsByFilter (filter: IndicatorFilter): IndicatorImp[] {
+  getIndicatorsByFilter(filter: IndicatorFilter): IndicatorImp[] {
     const { paneId, name, id } = filter
     const match: ((overlay: IndicatorImp) => boolean) = indicator => {
       if (isValid(id)) {
@@ -1228,7 +1230,7 @@ export default class StoreImp implements Store {
     return indicators
   }
 
-  removeIndicator (filter: IndicatorFilter): boolean {
+  removeIndicator(filter: IndicatorFilter): boolean {
     let removed = false
     const filterIndicators = this.getIndicatorsByFilter(filter)
     filterIndicators.forEach(indicator => {
@@ -1245,11 +1247,11 @@ export default class StoreImp implements Store {
     return removed
   }
 
-  hasIndicators (paneId: string): boolean {
+  hasIndicators(paneId: string): boolean {
     return this._indicators.has(paneId)
   }
 
-  private _synchronizeIndicatorSeriesPrecision (indicator?: IndicatorImp): void {
+  private _synchronizeIndicatorSeriesPrecision(indicator?: IndicatorImp): void {
     if (isValid(this._symbol)) {
       const {
         pricePrecision = SymbolDefaultPrecisionConstants.PRICE,
@@ -1281,7 +1283,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  overrideIndicator (override: IndicatorOverride): boolean {
+  overrideIndicator(override: IndicatorOverride): boolean {
     let updateFlag = false
     let sortFlag = false
     const filterIndicators = this.getIndicatorsByFilter(override)
@@ -1312,7 +1314,7 @@ export default class StoreImp implements Store {
     return false
   }
 
-  getOverlaysByFilter (filter: OverlayFilter): OverlayImp[] {
+  getOverlaysByFilter(filter: OverlayFilter): OverlayImp[] {
     const { id, groupId, paneId, name } = filter
     const match: ((overlay: OverlayImp) => boolean) = overlay => {
       if (isValid(id)) {
@@ -1340,7 +1342,7 @@ export default class StoreImp implements Store {
     return overlays
   }
 
-  getOverlaysByPaneId (paneId?: string): OverlayImp[] {
+  getOverlaysByPaneId(paneId?: string): OverlayImp[] {
     if (!isString(paneId)) {
       let overlays: OverlayImp[] = []
       this._overlays.forEach(paneOverlays => {
@@ -1351,7 +1353,7 @@ export default class StoreImp implements Store {
     return this._overlays.get(paneId) ?? []
   }
 
-  private _sortOverlays (paneId?: string): void {
+  private _sortOverlays(paneId?: string): void {
     if (isString(paneId)) {
       this._overlays.get(paneId)?.sort((o1, o2) => o1.zLevel - o2.zLevel)
     } else {
@@ -1361,7 +1363,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  addOverlays (os: OverlayCreate[], appointPaneFlags: boolean[]): Array<Nullable<string>> {
+  addOverlays(os: OverlayCreate[], appointPaneFlags: boolean[]): Array<Nullable<string>> {
     const updatePaneIds: string[] = []
     const ids = os.map((create, index) => {
       if (isValid(create.id)) {
@@ -1416,11 +1418,11 @@ export default class StoreImp implements Store {
     return ids
   }
 
-  getProgressOverlayInfo (): Nullable<ProgressOverlayInfo> {
+  getProgressOverlayInfo(): Nullable<ProgressOverlayInfo> {
     return this._progressOverlayInfo
   }
 
-  progressOverlayComplete (): void {
+  progressOverlayComplete(): void {
     if (this._progressOverlayInfo !== null) {
       const { overlay, paneId } = this._progressOverlayInfo
       if (!overlay.isDrawing()) {
@@ -1434,7 +1436,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  updateProgressOverlayInfo (paneId: string, appointPaneFlag?: boolean): void {
+  updateProgressOverlayInfo(paneId: string, appointPaneFlag?: boolean): void {
     if (this._progressOverlayInfo !== null) {
       if (isBoolean(appointPaneFlag) && appointPaneFlag) {
         this._progressOverlayInfo.appointPaneFlag = appointPaneFlag
@@ -1444,7 +1446,7 @@ export default class StoreImp implements Store {
     }
   }
 
-  overrideOverlay (override: OverlayOverride): boolean {
+  overrideOverlay(override: OverlayOverride): boolean {
     let sortFlag = false
     const updatePaneIds: string[] = []
     const filterOverlays = this.getOverlaysByFilter(override)
@@ -1475,7 +1477,7 @@ export default class StoreImp implements Store {
     return false
   }
 
-  removeOverlay (filter: OverlayFilter): boolean {
+  removeOverlay(filter: OverlayFilter): boolean {
     const updatePaneIds: string[] = []
     const filterOverlays = this.getOverlaysByFilter(filter)
     filterOverlays.forEach(overlay => {
@@ -1507,15 +1509,15 @@ export default class StoreImp implements Store {
     return false
   }
 
-  setPressedOverlayInfo (info: EventOverlayInfo): void {
+  setPressedOverlayInfo(info: EventOverlayInfo): void {
     this._pressedOverlayInfo = info
   }
 
-  getPressedOverlayInfo (): EventOverlayInfo {
+  getPressedOverlayInfo(): EventOverlayInfo {
     return this._pressedOverlayInfo
   }
 
-  setHoverOverlayInfo (
+  setHoverOverlayInfo(
     info: EventOverlayInfo,
     processOnMouseEnterEvent: ProcessOverlayEventCallback,
     processOnMouseLeaveEvent: ProcessOverlayEventCallback
@@ -1557,11 +1559,11 @@ export default class StoreImp implements Store {
     }
   }
 
-  getHoverOverlayInfo (): EventOverlayInfo {
+  getHoverOverlayInfo(): EventOverlayInfo {
     return this._hoverOverlayInfo
   }
 
-  setClickOverlayInfo (
+  setClickOverlayInfo(
     info: EventOverlayInfo,
     processOnSelectedEvent: ProcessOverlayEventCallback,
     processOnDeselectedEvent: ProcessOverlayEventCallback
@@ -1586,26 +1588,26 @@ export default class StoreImp implements Store {
     }
   }
 
-  getClickOverlayInfo (): EventOverlayInfo {
+  getClickOverlayInfo(): EventOverlayInfo {
     return this._clickOverlayInfo
   }
 
-  isOverlayEmpty (): boolean {
+  isOverlayEmpty(): boolean {
     return this._overlays.size === 0 && this._progressOverlayInfo === null
   }
 
-  isOverlayDrawing (): boolean {
+  isOverlayDrawing(): boolean {
     return this._progressOverlayInfo?.overlay.isDrawing() ?? false
   }
 
-  private _clearLastPriceMarkExtendTextUpdateTimer (): void {
+  private _clearLastPriceMarkExtendTextUpdateTimer(): void {
     this._lastPriceMarkExtendTextUpdateTimers.forEach(timer => {
       clearInterval(timer)
     })
     this._lastPriceMarkExtendTextUpdateTimers = []
   }
 
-  private _clearData (): void {
+  private _clearData(): void {
     this._dataLoadMore.backward = false
     this._dataLoadMore.forward = false
     this._loading = false
@@ -1619,11 +1621,11 @@ export default class StoreImp implements Store {
     this._crosshair = {}
   }
 
-  getChart (): Chart {
+  getChart(): Chart {
     return this._chart
   }
 
-  destroy (): void {
+  destroy(): void {
     this._clearData()
     this._clearLastPriceMarkExtendTextUpdateTimer()
     this._taskScheduler.clear()

@@ -4,11 +4,11 @@ if (process.env.npm_command === 'install') {
   const allowedPackageManager = 'pnpm'
   const currentPackageManager = process.env.npm_config_user_agent?.split('/')[0] || 'unknown'
   if (currentPackageManager !== allowedPackageManager) {
-    console.log(styleText('red', `\nError: This project must use ${allowedPackageManager} as the package manager. The current package manager used is ${currentPackageManager}. Please use the command ${styleText('underline', `${allowedPackageManager} install`)} to install dependencies .\n`))
-    process.exit(1)
+    // Downgraded to warning: parent project uses npm, vendor uses pnpm for builds
+    console.log(`\nWarning: This library uses ${allowedPackageManager} for builds. The current package manager is ${currentPackageManager}. Use "npm run build:klinecharts" from the parent project.\n`)
   }
 
-  function compareVersions (current, required) {
+  function compareVersions(current, required) {
     const operator = required.match(/^[><=]+/)?.[0] || '>='
     const version = required.replace(/^[><=]+/, '')
 
