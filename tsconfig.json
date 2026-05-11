@@ -1,9 +1,11 @@
 {
   "compilerOptions": {
     "strictNullChecks": true,
-    "target": "ES5",
+    "strictPropertyInitialization": false,
+    "target": "ES2015",
+    "moduleResolution": "node",
+    "types": ["node"],
     "esModuleInterop": true,
-    "downlevelIteration": true,
     "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
