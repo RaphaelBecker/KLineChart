@@ -31,12 +31,26 @@ export interface TooltipLegendHover {
   indicatorName: string
 }
 
+/** Ratiofolio patch: deterministic legend geometry for Playwright real-canvas clicks. */
+export interface LegendHitbox {
+  kind: 'tree_root' | 'gear' | 'remove'
+  paneId: string
+  indicatorName?: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export default class TooltipStore {
   private readonly _chartStore: ChartStore
   private _crosshair: Crosshair = {}
   private _activeIcon: Nullable<TooltipIcon> = null
   /** Ratiofolio patch: which indicator legend row is hovered/focused for action icons. */
   private _hoveredLegend: Nullable<TooltipLegendHover> = null
+  /** Ratiofolio patch: candle-pane parent-legend tree expanded state (session-only). */
+  private _candleLegendExpanded = true
+  private _legendHitboxes: LegendHitbox[] = []
 
   constructor (chartStore: ChartStore) {
     this._chartStore = chartStore
@@ -120,6 +134,52 @@ export default class TooltipStore {
 
   getHoveredLegend (): Nullable<TooltipLegendHover> {
     return this._hoveredLegend
+  }
+
+  isCandleLegendExpanded (): boolean {
+    return this._candleLegendExpanded
+  }
+
+  setCandleLegendExpanded (expanded: boolean): void {
+    if (this._candleLegendExpanded === expanded) {
+      return
+    }
+    this._candleLegendExpanded = expanded
+    this._chartStore.getChart().updatePane(UpdateLevel.Overlay)
+  }
+
+  toggleCandleLegendExpanded (): void {
+    this.setCandleLegendExpanded(!this._candleLegendExpanded)
+  }
+
+  clearLegendHitboxes (): void {
+    this._legendHitboxes = []
+    this._syncLegendHitboxesToWindow()
+  }
+
+  addLegendHitbox (hitbox: LegendHitbox): void {
+    this._legendHitboxes.push(hitbox)
+    this._syncLegendHitboxesToWindow()
+  }
+
+  getLegendHitboxes (): LegendHitbox[] {
+    return this._legendHitboxes.slice()
+  }
+
+  private _syncLegendHitboxesToWindow (): void {
+    if (typeof window === 'undefined') {
+      return
+    }
+    // Only expose geometry when the Playwright chart test hook is registered.
+    const w = window as Window & {
+      __RATIOFOLIO_CHART_TEST__?: unknown
+      __RATIOFOLIO_LEGEND_HITBOXES__?: LegendHitbox[]
+    }
+    if (!w.__RATIOFOLIO_CHART_TEST__) {
+      delete w.__RATIOFOLIO_LEGEND_HITBOXES__
+      return
+    }
+    w.__RATIOFOLIO_LEGEND_HITBOXES__ = this._legendHitboxes.slice()
   }
 
   clear (): void {

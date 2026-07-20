@@ -201,9 +201,10 @@ export default class Event implements EventHandler {
         case WidgetNameConstants.MAIN: {
           const consumed = widget.dispatchEvent('mouseMoveEvent', event)
           const chartStore = this._chart.getChartStore()
+          // Ratiofolio: preserve paneId while legend icons are active so FollowCross
+          // indicator tooltips (gear/remove/tree) stay mounted for the subsequent click.
           let crosshair: Crosshair | undefined = { x: event.x, y: event.y, paneId: pane?.getId() }
           if (consumed && chartStore.getTooltipStore().getActiveIcon() !== null) {
-            crosshair = undefined
             if (widget !== null) {
               widget.getContainer().style.cursor = 'pointer'
             }
