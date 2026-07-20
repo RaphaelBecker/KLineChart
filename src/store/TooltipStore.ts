@@ -26,10 +26,17 @@ export interface TooltipIcon {
   iconId: string
 }
 
+export interface TooltipLegendHover {
+  paneId: string
+  indicatorName: string
+}
+
 export default class TooltipStore {
   private readonly _chartStore: ChartStore
   private _crosshair: Crosshair = {}
   private _activeIcon: Nullable<TooltipIcon> = null
+  /** Ratiofolio patch: which indicator legend row is hovered/focused for action icons. */
+  private _hoveredLegend: Nullable<TooltipLegendHover> = null
 
   constructor (chartStore: ChartStore) {
     this._chartStore = chartStore
@@ -99,8 +106,25 @@ export default class TooltipStore {
     return this._activeIcon
   }
 
+  setHoveredLegend (legend?: TooltipLegendHover): void {
+    const next = legend ?? null
+    const prev = this._hoveredLegend
+    const changed =
+      (prev?.paneId !== next?.paneId) ||
+      (prev?.indicatorName !== next?.indicatorName)
+    this._hoveredLegend = next
+    if (changed) {
+      this._chartStore.getChart().updatePane(UpdateLevel.Overlay)
+    }
+  }
+
+  getHoveredLegend (): Nullable<TooltipLegendHover> {
+    return this._hoveredLegend
+  }
+
   clear (): void {
     this.setCrosshair({}, { notInvalidate: true })
     this.setActiveIcon()
+    this.setHoveredLegend()
   }
 }

@@ -34,6 +34,13 @@ import { type TooltipIcon } from '../store/TooltipStore'
 
 import View from './View'
 
+function isCoarsePointerDevice (): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false
+  }
+  return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches
+}
+
 export default class IndicatorTooltipView extends View<YAxis> {
   private readonly _boundIconClickEvent = (currentIcon: TooltipIcon) => () => {
     const pane = this.getWidget().getPane()
@@ -45,6 +52,17 @@ export default class IndicatorTooltipView extends View<YAxis> {
     const pane = this.getWidget().getPane()
     const tooltipStore = pane.getChart().getChartStore().getTooltipStore()
     tooltipStore.setActiveIcon({ ...currentIconInfo })
+    // Keep the parent legend row revealed while hovering its action icons.
+    tooltipStore.setHoveredLegend({
+      paneId: currentIconInfo.paneId,
+      indicatorName: currentIconInfo.indicatorName
+    })
+    return true
+  }
+
+  private readonly _boundLegendRowMouseMoveEvent = (paneId: string, indicatorName: string) => () => {
+    const pane = this.getWidget().getPane()
+    pane.getChart().getChartStore().getTooltipStore().setHoveredLegend({ paneId, indicatorName })
     return true
   }
 
@@ -90,14 +108,28 @@ export default class IndicatorTooltipView extends View<YAxis> {
     const tooltipStyles = styles.tooltip
     if (this.isDrawTooltip(crosshair, tooltipStyles)) {
       const tooltipTextStyles = tooltipStyles.text
+      const tooltipStore = this.getWidget().getPane().getChart().getChartStore().getTooltipStore()
+      const hoveredLegend = tooltipStore.getHoveredLegend()
+      const coarsePointer = isCoarsePointerDevice()
       indicators.forEach(indicator => {
         let prevRowHeight = 0
+        const rowTop = top
         const coordinate = { x: left, y: top }
         const { name, calcParamsText, values: legends, icons } = this.getIndicatorTooltipData(dataList, crosshair, indicator, customApi, thousandsSeparator, decimalFoldThreshold, styles)
         const nameValid = name.length > 0
         const legendValid = legends.length > 0
         if (nameValid || legendValid) {
-          const [leftIcons, middleIcons, rightIcons] = this.classifyTooltipIcons(icons)
+          const rowHovered =
+            hoveredLegend?.paneId === paneId &&
+            hoveredLegend?.indicatorName === indicator.name
+          const rowFocused =
+            activeTooltipIcon?.paneId === paneId &&
+            activeTooltipIcon?.indicatorName === indicator.name
+          // Ratiofolio patch: reveal configured tooltip icons only for the hovered/focused
+          // legend row (always on coarse-pointer / touch devices).
+          const revealIcons = coarsePointer || rowHovered || rowFocused
+          const visibleIcons = revealIcons ? icons : []
+          const [leftIcons, middleIcons, rightIcons] = this.classifyTooltipIcons(visibleIcons)
           prevRowHeight = this.drawStandardTooltipIcons(
             ctx, activeTooltipIcon, leftIcons,
             coordinate, paneId, indicator.name,
@@ -140,7 +172,31 @@ export default class IndicatorTooltipView extends View<YAxis> {
             coordinate, paneId, indicator.name,
             left, prevRowHeight, maxWidth
           )
-          top = coordinate.y + prevRowHeight
+
+          const rowBottom = coordinate.y + prevRowHeight
+          const rowHeight = Math.max(1, rowBottom - rowTop)
+          // Invisible hitbox so hovering the legend text reveals action icons.
+          this.createFigure({
+            name: 'rect',
+            attrs: {
+              x: left,
+              y: rowTop,
+              width: Math.max(1, maxWidth - left),
+              height: rowHeight
+            },
+            styles: {
+              style: 'fill',
+              color: 'rgba(0,0,0,0)',
+              borderColor: 'rgba(0,0,0,0)',
+              borderSize: 0,
+              borderStyle: 'solid',
+              borderDashedValue: [2, 2]
+            }
+          }, {
+            mouseMoveEvent: this._boundLegendRowMouseMoveEvent(paneId, indicator.name)
+          })?.draw(ctx)
+
+          top = rowBottom
         }
       })
     }

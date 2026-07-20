@@ -41,6 +41,11 @@ export default class IndicatorWidget extends DrawWidget<DrawPane<YAxis>> {
       pane.getChart().getChartStore().getTooltipStore().setActiveIcon()
       return false
     })
+    // Ratiofolio patch: drop legend-row hover when the pointer leaves the pane.
+    this.registerEvent('mouseLeaveEvent', () => {
+      pane.getChart().getChartStore().getTooltipStore().setHoveredLegend()
+      return false
+    })
   }
 
   getName (): string {
