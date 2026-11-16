@@ -49,6 +49,9 @@ export default class CandleAreaView extends ChildrenView {
     const widget = this.getWidget()
     const pane = widget.getPane()
     const chart = pane.getChart()
+    if (chart.getStyles().candle.visible === false) {
+      return
+    }
     const dataList = chart.getDataList()
     const lastDataIndex = dataList.length - 1
     const bounding = widget.getBounding()

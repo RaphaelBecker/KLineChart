@@ -53,6 +53,10 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     let indicatorPrecision = Number.MAX_SAFE_INTEGER
     const indicators = chartStore.getIndicatorStore().getInstances(parent.getId())
     indicators.forEach(indicator => {
+      // Ratiofolio patch: hidden series do not contribute to the y-range.
+      if (!indicator.visible) {
+        return
+      }
       if (!shouldOhlc) {
         shouldOhlc = indicator.shouldOhlc ?? false
       }
@@ -87,14 +91,16 @@ export default abstract class YAxisImp extends AxisImp implements YAxis {
     const candleStyles = chart.getStyles().candle
     const isArea = candleStyles.type === CandleType.Area
     const areaValueKey = candleStyles.area.value
-    const shouldCompareHighLow = (inCandle && !isArea) || (!inCandle && shouldOhlc)
+    // Ratiofolio patch: candle.visible === false leaves main OHLC out of the range.
+    const includeMainSeries = inCandle && candleStyles.visible !== false
+    const shouldCompareHighLow = (includeMainSeries && !isArea) || (!inCandle && shouldOhlc)
     visibleDataList.forEach(({ dataIndex, data }) => {
       if (isValid(data)) {
         if (shouldCompareHighLow) {
           min = Math.min(min, data.low)
           max = Math.max(max, data.high)
         }
-        if (inCandle && isArea) {
+        if (includeMainSeries && isArea) {
           const value = data[areaValueKey]
           if (isNumber(value)) {
             min = Math.min(min, value)

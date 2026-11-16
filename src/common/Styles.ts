@@ -177,6 +177,35 @@ export interface TooltipIconStyle extends Padding, Margin {
   icon: string
   backgroundColor: string
   activeBackgroundColor: string
+  /** App-supplied hover label. Empty or omitted draws no bubble. */
+  tooltip?: string
+  /** Stay visible when the legend row is not hovered. */
+  persistent?: boolean
+}
+
+export interface TooltipActionBarStyle {
+  backgroundColor: string
+  borderColor: string
+  borderSize: number
+  borderRadius: number
+  paddingX: number
+  gap: number
+}
+
+export interface TooltipIconTooltipStyle {
+  backgroundColor: string
+  color: string
+  size: number
+  paddingX: number
+  paddingY: number
+  borderRadius: number
+}
+
+export interface TooltipCollapseStyle {
+  /** When true, each pane legend group uses a chevron and collapsed pill instead of the candle-pane tree root. */
+  show: boolean
+  iconColor: string
+  pillBorderColor: string
 }
 
 export interface TooltipStyle {
@@ -185,6 +214,12 @@ export interface TooltipStyle {
   defaultValue: string
   text: TooltipTextStyle
   icons: TooltipIconStyle[]
+  actionBar: TooltipActionBarStyle
+  iconTooltip: TooltipIconTooltipStyle
+  hiddenTextColor: string
+  collapse: TooltipCollapseStyle
+  /** App-supplied label for the legend name hit area. */
+  nameTooltip?: string
 }
 
 export interface CandleAreaPointStyle {
@@ -271,6 +306,8 @@ export interface CandleBarColor extends ChangeColor {
 
 export interface CandleStyle {
   type: CandleType
+  /** When false, the main series is not drawn and is left out of the y-range. Defaults to true. */
+  visible?: boolean
   bar: CandleBarColor
   area: CandleAreaStyle
   priceMark: CandlePriceMarkStyle
@@ -549,7 +586,8 @@ function getDefaultCandleStyle (): CandleStyle {
         marginRight: 8,
         marginBottom: 4
       },
-      icons: []
+      icons: [],
+      ...getDefaultTooltipExtras()
     }
   }
 }
@@ -631,7 +669,35 @@ function getDefaultIndicatorStyle (): IndicatorStyle {
         marginRight: 8,
         marginBottom: 4
       },
-      icons: []
+      icons: [],
+      ...getDefaultTooltipExtras()
+    }
+  }
+}
+
+function getDefaultTooltipExtras (): Pick<TooltipStyle, 'actionBar' | 'iconTooltip' | 'hiddenTextColor' | 'collapse'> {
+  return {
+    actionBar: {
+      backgroundColor: 'transparent',
+      borderColor: 'transparent',
+      borderSize: 1,
+      borderRadius: 4,
+      paddingX: 4,
+      gap: 4
+    },
+    iconTooltip: {
+      backgroundColor: '#2A2E39',
+      color: white,
+      size: 12,
+      paddingX: 6,
+      paddingY: 4,
+      borderRadius: 4
+    },
+    hiddenTextColor: 'rgba(118, 128, 143, .45)',
+    collapse: {
+      show: false,
+      iconColor: textColor,
+      pillBorderColor: '#B8BEC8'
     }
   }
 }
