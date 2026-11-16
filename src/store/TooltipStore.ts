@@ -31,9 +31,18 @@ export interface TooltipLegendHover {
   indicatorName: string
 }
 
+/** Candle-pane main legend row. Not an indicator name. */
+export const MAIN_LEGEND_INDICATOR_NAME = '__main__'
+
+/** Click id for a legend name hit area. */
+export const LEGEND_NAME_ICON_ID = '__legend_name__'
+
 /** Ratiofolio patch: deterministic legend geometry for Playwright real-canvas clicks. */
+export type LegendHitboxKind =
+  'tree_root' | 'gear' | 'remove' | 'eye' | 'more' | 'name' | 'collapse' | 'pill'
+
 export interface LegendHitbox {
-  kind: 'tree_root' | 'gear' | 'remove'
+  kind: LegendHitboxKind
   paneId: string
   indicatorName?: string
   x: number
@@ -50,6 +59,8 @@ export default class TooltipStore {
   private _hoveredLegend: Nullable<TooltipLegendHover> = null
   /** Ratiofolio patch: candle-pane parent-legend tree expanded state (session-only). */
   private _candleLegendExpanded = true
+  /** Ratiofolio patch: per-pane legend groups collapsed this session. */
+  private readonly _collapsedPanes = new Set<string>()
   private _legendHitboxes: LegendHitbox[] = []
 
   constructor (chartStore: ChartStore) {
@@ -152,8 +163,33 @@ export default class TooltipStore {
     this.setCandleLegendExpanded(!this._candleLegendExpanded)
   }
 
-  clearLegendHitboxes (): void {
-    this._legendHitboxes = []
+  isPaneCollapsed (paneId: string): boolean {
+    return this._collapsedPanes.has(paneId)
+  }
+
+  setPaneCollapsed (paneId: string, collapsed: boolean): void {
+    const wasCollapsed = this._collapsedPanes.has(paneId)
+    if (wasCollapsed === collapsed) {
+      return
+    }
+    if (collapsed) {
+      this._collapsedPanes.add(paneId)
+    } else {
+      this._collapsedPanes.delete(paneId)
+    }
+    this._chartStore.getChart().updatePane(UpdateLevel.Overlay)
+  }
+
+  togglePaneCollapsed (paneId: string): void {
+    this.setPaneCollapsed(paneId, !this.isPaneCollapsed(paneId))
+  }
+
+  clearLegendHitboxes (paneId?: string): void {
+    if (paneId === undefined) {
+      this._legendHitboxes = []
+    } else {
+      this._legendHitboxes = this._legendHitboxes.filter(hitbox => hitbox.paneId !== paneId)
+    }
     this._syncLegendHitboxesToWindow()
   }
 

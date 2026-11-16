@@ -44,6 +44,9 @@ export default class CandleBarView extends ChildrenView {
     const pane = this.getWidget().getPane()
     const isMain = pane.getId() === PaneIdConstants.CANDLE
     const chartStore = pane.getChart().getChartStore()
+    if (isMain && chartStore.getStyles().candle.visible === false) {
+      return
+    }
     const candleBarOptions = this.getCandleBarOptions(chartStore)
     if (candleBarOptions !== null) {
       let ohlcSize = 0

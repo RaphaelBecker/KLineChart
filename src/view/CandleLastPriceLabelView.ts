@@ -26,6 +26,9 @@ export default class CandleLastPriceLabelView extends View {
     const pane = widget.getPane()
     const bounding = widget.getBounding()
     const chartStore = pane.getChart().getChartStore()
+    if (chartStore.getStyles().candle.visible === false) {
+      return
+    }
     const priceMarkStyles = chartStore.getStyles().candle.priceMark
     const lastPriceMarkStyles = priceMarkStyles.last
     const lastPriceMarkTextStyles = lastPriceMarkStyles.text

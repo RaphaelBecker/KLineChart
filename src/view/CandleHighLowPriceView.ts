@@ -26,6 +26,9 @@ export default class CandleHighLowPriceView extends ChildrenView {
     const widget = this.getWidget()
     const pane = widget.getPane()
     const chartStore = pane.getChart().getChartStore()
+    if (chartStore.getStyles().candle.visible === false) {
+      return
+    }
     const priceMarkStyles = chartStore.getStyles().candle.priceMark
     const highPriceMarkStyles = priceMarkStyles.high
     const lowPriceMarkStyles = priceMarkStyles.low

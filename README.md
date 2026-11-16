@@ -115,3 +115,38 @@ The generated files are in the dist folder.
 
 ## ©️ License
 KLineChart is available under the Apache License V2.
+
+## Ratiofolio patches
+
+Patches on `v9-stable` for the Ratiofolio chart. They are style-driven: unset keys keep the upstream picture. No app imports, no persistence, and no `window` access except the existing Playwright hitbox mirror.
+
+### `ec1a9389` — Reveal indicator legend action icons on row hover
+
+`TooltipStore` tracks the hovered legend row. `IndicatorTooltipView` draws configured tooltip icons only for that row, and always on a coarse pointer. `IndicatorWidget` clears the hover when the pointer leaves the pane.
+
+### `51a83f32` — Collapsible candle legend tree with canvas hitboxes
+
+Candle-pane indicator rows sit under an `Indicators (N)` root (`__ratiofolio_legend_tree__`). The expanded flag is session-only (`isCandleLegendExpanded`). Hitboxes of kind `tree_root`, `gear`, and `remove` are mirrored to `window.__RATIOFOLIO_LEGEND_HITBOXES__` only while `window.__RATIOFOLIO_CHART_TEST__` is set. Icon clicks use a rect hit surface registered before later row-hover rects. `Event` keeps `crosshair.paneId` while a legend icon is active so a follow-cross tooltip stays mounted for the click.
+
+### Legend action bar, per-pane collapse, hidden rows, and visible-series range
+
+Style keys (typed on both `candle.tooltip` and `indicator.tooltip` unless noted):
+
+| Key | Role |
+| :--- | :--- |
+| `candle.visible` | Default true. `false` skips main candle, area, high/low, and last-price drawing, and leaves main OHLC out of `YAxis.calcRange`. |
+| `tooltip.actionBar` | `{ backgroundColor, borderColor, borderSize, borderRadius, paddingX, gap }`. Painted behind a hovered row's values and action icons when the fill or border is visible. Default fill and border are `transparent`. |
+| `tooltip.iconTooltip` | `{ backgroundColor, color, size, paddingX, paddingY, borderRadius }`. Bubble above a hovered control. |
+| `tooltip.hiddenTextColor` | Name color when the series is hidden. Values are omitted. |
+| `tooltip.collapse` | `{ show, iconColor, pillBorderColor }`. `show: false` (default) keeps the candle-pane `Indicators (N)` tree. `show: true` replaces that tree with a per-pane chevron; a collapsed pane is an outlined pill with a down chevron and the row count. State is a session `Set` of pane ids. |
+| `tooltip.nameTooltip` | Optional string. The name hit emits `onTooltipIconClick` with `iconId: '__legend_name__'`. |
+| `TooltipIconStyle.tooltip` | Optional hover label for that icon. |
+| `TooltipIconStyle.persistent` | Optional. The icon stays visible when the row is not hovered. |
+
+`YAxis.calcRange` skips indicators with `visible === false`. `overrideIndicator` rebuilds that range when the override changes visibility without recalculating the series.
+
+`Indicators (N)` counts indicators whose tooltip data has a name or at least one value. An empty `createTooltipDataSource` (no name, no values) does not add a row and is not counted.
+
+Hitbox `kind` adds `eye`, `more`, `name`, `collapse`, and `pill`. Every hitbox includes `paneId` and `indicatorName`. The main candle row uses `indicatorName: '__main__'`.
+
+Icon ids for hitbox kinds: `ratiofolio_indicator_settings` (gear), `ratiofolio_indicator_remove` (remove), `ratiofolio_indicator_visibility` (eye), `ratiofolio_indicator_more` (more). Icons stay app-supplied. `icon` values `eye`, `eye-off`, `gear`, `trash`, and `more` are drawn as outline paths. Any other string is still drawn as text, so existing gear and remove glyphs keep working. The collapse chevron is an outline path.

@@ -15,10 +15,11 @@
 import type Nullable from '../common/Nullable'
 import type KLineData from '../common/KLineData'
 import type Crosshair from '../common/Crosshair'
-import { type IndicatorStyle, type TooltipStyle, type TooltipIconStyle, type TooltipTextStyle, type TooltipLegend, TooltipShowRule, type TooltipLegendChild, TooltipIconPosition } from '../common/Styles'
+import { type IndicatorStyle, type TooltipStyle, type TooltipIconStyle, type TooltipTextStyle, type TooltipLegend, type TooltipIconTooltipStyle, type TooltipActionBarStyle, TooltipShowRule, type TooltipLegendChild, TooltipIconPosition, PolygonType, LineType } from '../common/Styles'
 import { ActionType } from '../common/Action'
 import { formatPrecision, formatThousands, formatFoldDecimal } from '../common/utils/format'
 import { isValid, isObject, isString, isNumber } from '../common/utils/typeChecks'
+import { isTransparent } from '../common/utils/color'
 import { createFont } from '../common/utils/canvas'
 import type Coordinate from '../common/Coordinate'
 
@@ -30,19 +31,22 @@ import { type Indicator, type IndicatorFigure, type IndicatorFigureStyle, type I
 import type IndicatorImp from '../component/Indicator'
 import { eachFigures } from '../component/Indicator'
 
-import { type TooltipIcon } from '../store/TooltipStore'
+import { type TooltipIcon, type LegendHitbox, LEGEND_NAME_ICON_ID } from '../store/TooltipStore'
 import { PaneIdConstants } from '../pane/types'
 
 import View from './View'
+import { legendOutlineFigures, legendOutlineName, type LegendOutlineName } from './legendOutlineIcons'
 
 /** Ratiofolio patch: reserved candle-pane legend tree identity (mirrors app constants). */
 const LEGEND_TREE_ROOT_NAME = '__ratiofolio_legend_tree__'
 const LEGEND_TREE_TOGGLE_ICON_ID = 'ratiofolio_legend_tree_toggle'
 const LEGEND_GEAR_ICON_ID = 'ratiofolio_indicator_settings'
 const LEGEND_REMOVE_ICON_ID = 'ratiofolio_indicator_remove'
+const LEGEND_EYE_ICON_ID = 'ratiofolio_indicator_visibility'
+const LEGEND_MORE_ICON_ID = 'ratiofolio_indicator_more'
 const LEGEND_TREE_CHILD_INDENT_PX = 14
 
-function isCoarsePointerDevice (): boolean {
+export function isCoarsePointerDevice (): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return false
   }
@@ -108,11 +112,25 @@ export default class IndicatorTooltipView extends View<YAxis> {
     return true
   }
 
+  private readonly _boundPaneCollapseClick = (paneId: string) => () => {
+    const pane = this.getWidget().getPane()
+    pane.getChart().getChartStore().getTooltipStore().togglePaneCollapsed(paneId)
+    return true
+  }
+
+  private readonly _boundPaneCollapseMove = (paneId: string, indicatorName: string, iconId: string) => () => {
+    const pane = this.getWidget().getPane()
+    const tooltipStore = pane.getChart().getChartStore().getTooltipStore()
+    tooltipStore.setActiveIcon({ paneId, indicatorName, iconId })
+    return true
+  }
+
   override drawImp (ctx: CanvasRenderingContext2D): void {
     const widget = this.getWidget()
     const pane = widget.getPane()
     const chartStore = pane.getChart().getChartStore()
     const crosshair = chartStore.getTooltipStore().getCrosshair()
+    chartStore.getTooltipStore().clearLegendHitboxes(pane.getId())
     if (isValid(crosshair.kLineData)) {
       const bounding = widget.getBounding()
       const customApi = chartStore.getCustomApi()
@@ -154,18 +172,28 @@ export default class IndicatorTooltipView extends View<YAxis> {
       const hoveredLegend = tooltipStore.getHoveredLegend()
       const coarsePointer = isCoarsePointerDevice()
       const isCandlePane = paneId === PaneIdConstants.CANDLE
-      if (isCandlePane) {
-        tooltipStore.clearLegendHitboxes()
+      const groupCollapse = tooltipStyles.collapse.show
+
+      const legendRows = indicators.filter(isCandlePaneLegendParent).flatMap(indicator => {
+        const data = this.getIndicatorTooltipData(dataList, crosshair, indicator, customApi, thousandsSeparator, decimalFoldThreshold, styles)
+        if (!this.tooltipDataRendersLegendRow(data)) {
+          return []
+        }
+        return [{ indicator, data }]
+      })
+      if (groupCollapse && legendRows.length > 0 && tooltipStore.isPaneCollapsed(paneId)) {
+        return this.drawCollapsePill(
+          ctx, tooltipStore, paneId, legendRows.length, left, top, tooltipTextStyles, tooltipStyles.collapse
+        )
       }
 
-      const parentIndicators = indicators.filter(isCandlePaneLegendParent)
       let rowLeft = left
-      if (isCandlePane && parentIndicators.length > 0) {
+      if (!groupCollapse && isCandlePane && legendRows.length > 0) {
         top = this.drawCandleLegendTreeRoot(
           ctx,
           tooltipStore,
           activeTooltipIcon,
-          parentIndicators.length,
+          legendRows.length,
           left,
           top,
           maxWidth,
@@ -177,114 +205,149 @@ export default class IndicatorTooltipView extends View<YAxis> {
         }
       }
 
-      parentIndicators.forEach(indicator => {
+      legendRows.forEach(({ indicator, data }) => {
         let prevRowHeight = 0
         const rowTop = top
         const coordinate = { x: rowLeft, y: top }
-        const { name, calcParamsText, values: legends, icons } = this.getIndicatorTooltipData(dataList, crosshair, indicator, customApi, thousandsSeparator, decimalFoldThreshold, styles)
+        const { name, calcParamsText, values: legends, icons } = data
         const nameValid = name.length > 0
         const legendValid = legends.length > 0
-        if (nameValid || legendValid) {
-          const rowHovered =
-            hoveredLegend?.paneId === paneId &&
-            hoveredLegend?.indicatorName === indicator.name
-          const rowFocused =
-            activeTooltipIcon?.paneId === paneId &&
-            activeTooltipIcon?.indicatorName === indicator.name
-          // Ratiofolio patch: reveal configured tooltip icons only for the hovered/focused
-          // legend row (always on coarse-pointer / touch devices).
-          const revealIcons = coarsePointer || rowHovered || rowFocused
-          const visibleIcons = revealIcons ? icons : []
-          const [leftIcons, middleIcons, rightIcons] = this.classifyTooltipIcons(visibleIcons)
-          prevRowHeight = this.drawStandardTooltipIcons(
-            ctx, activeTooltipIcon, leftIcons,
-            coordinate, paneId, indicator.name,
-            rowLeft, prevRowHeight, maxWidth
-          )
+        const rowHovered =
+          hoveredLegend?.paneId === paneId &&
+          hoveredLegend?.indicatorName === indicator.name
+        const rowFocused =
+          activeTooltipIcon?.paneId === paneId &&
+          activeTooltipIcon?.indicatorName === indicator.name
+        // Ratiofolio patch: reveal configured tooltip icons only for the hovered/focused
+        // legend row (always on coarse-pointer / touch devices). Persistent icons stay.
+        const revealIcons = coarsePointer || rowHovered || rowFocused
+        const visibleIcons = revealIcons ? icons : icons.filter(icon => icon.persistent === true)
+        const [leftIcons, middleIcons, rightIcons] = this.classifyTooltipIcons(visibleIcons)
+        const nameColor = indicator.visible ? tooltipTextStyles.color : tooltipStyles.hiddenTextColor
+        const iconOptions = {
+          iconTooltip: tooltipStyles.iconTooltip,
+          textFamily: tooltipTextStyles.family,
+          gap: this.actionBarPaints(tooltipStyles.actionBar) && revealIcons ? tooltipStyles.actionBar.gap : undefined
+        }
+        prevRowHeight = this.drawStandardTooltipIcons(
+          ctx, activeTooltipIcon, leftIcons,
+          coordinate, paneId, indicator.name,
+          rowLeft, prevRowHeight, maxWidth, iconOptions
+        )
 
-          if (nameValid) {
-            let text = name
-            if (calcParamsText.length > 0) {
-              text = `${text}${calcParamsText}`
-            }
-            prevRowHeight = this.drawStandardTooltipLegends(
-              ctx,
-              [
-                {
-                  title: { text: '', color: tooltipTextStyles.color },
-                  value: { text, color: tooltipTextStyles.color }
-                }
-              ],
-              coordinate, rowLeft, prevRowHeight, maxWidth, tooltipTextStyles
-            )
+        let nameHit: { x: number, width: number } | null = null
+        if (nameValid) {
+          let text = name
+          if (calcParamsText.length > 0) {
+            text = `${text}${calcParamsText}`
           }
-
-          prevRowHeight = this.drawStandardTooltipIcons(
-            ctx, activeTooltipIcon, middleIcons,
-            coordinate, paneId, indicator.name,
-            rowLeft, prevRowHeight, maxWidth
-          )
-
-          if (legendValid) {
-            prevRowHeight = this.drawStandardTooltipLegends(
-              ctx, legends, coordinate,
-              rowLeft, prevRowHeight, maxWidth, tooltipStyles.text
-            )
-          }
-
-          // draw right icons
-          prevRowHeight = this.drawStandardTooltipIcons(
-            ctx, activeTooltipIcon, rightIcons,
-            coordinate, paneId, indicator.name,
-            rowLeft, prevRowHeight, maxWidth
-          )
-
-          const rowBottom = coordinate.y + prevRowHeight
-          const rowHeight = Math.max(1, rowBottom - rowTop)
-          if (isCandlePane) {
-            // Subtle tree guide under the root caret column.
-            this.createFigure({
-              name: 'rect',
-              attrs: {
-                x: left + 5,
-                y: rowTop,
-                width: 1,
-                height: rowHeight
-              },
-              styles: {
-                style: 'fill',
-                color: 'rgba(118, 128, 143, 0.35)',
-                borderColor: 'rgba(0,0,0,0)',
-                borderSize: 0,
-                borderStyle: 'solid',
-                borderDashedValue: [2, 2]
+          const nameStartX = coordinate.x
+          prevRowHeight = this.drawStandardTooltipLegends(
+            ctx,
+            [
+              {
+                title: { text: '', color: nameColor },
+                value: { text, color: nameColor }
               }
-            })?.draw(ctx)
-          }
-          // Invisible hitbox so hovering the legend text reveals action icons.
+            ],
+            coordinate, rowLeft, prevRowHeight, maxWidth, tooltipTextStyles
+          )
+          nameHit = { x: nameStartX, width: Math.max(1, coordinate.x - nameStartX) }
+        }
+
+        prevRowHeight = this.drawStandardTooltipIcons(
+          ctx, activeTooltipIcon, middleIcons,
+          coordinate, paneId, indicator.name,
+          rowLeft, prevRowHeight, maxWidth, iconOptions
+        )
+
+        const clusterStartX = coordinate.x
+        const clusterStartY = coordinate.y
+        if (revealIcons && this.actionBarPaints(tooltipStyles.actionBar) && (legendValid || rightIcons.length > 0)) {
+          const clusterWidth = this.measureTooltipLegendsWidth(ctx, legendValid ? legends : [], tooltipTextStyles) +
+            this.measureTooltipIconsWidth(ctx, rightIcons, iconOptions.gap)
+          this.drawActionBar(
+            ctx,
+            clusterStartX,
+            clusterStartY,
+            clusterWidth,
+            Math.max(prevRowHeight, tooltipTextStyles.marginTop + tooltipTextStyles.size + tooltipTextStyles.marginBottom),
+            tooltipStyles.actionBar
+          )
+        }
+
+        if (legendValid) {
+          prevRowHeight = this.drawStandardTooltipLegends(
+            ctx, legends, coordinate,
+            rowLeft, prevRowHeight, maxWidth, tooltipStyles.text
+          )
+        }
+
+        prevRowHeight = this.drawStandardTooltipIcons(
+          ctx, activeTooltipIcon, rightIcons,
+          coordinate, paneId, indicator.name,
+          rowLeft, prevRowHeight, maxWidth, iconOptions
+        )
+
+        const rowBottom = coordinate.y + prevRowHeight
+        const rowHeight = Math.max(1, rowBottom - rowTop)
+        if (!groupCollapse && isCandlePane) {
+          // Subtle tree guide under the root caret column.
           this.createFigure({
             name: 'rect',
             attrs: {
-              x: rowLeft,
+              x: left + 5,
               y: rowTop,
-              width: Math.max(1, maxWidth - rowLeft),
+              width: 1,
               height: rowHeight
             },
             styles: {
               style: 'fill',
-              color: 'rgba(0,0,0,0)',
+              color: 'rgba(118, 128, 143, 0.35)',
               borderColor: 'rgba(0,0,0,0)',
               borderSize: 0,
               borderStyle: 'solid',
               borderDashedValue: [2, 2]
             }
-          }, {
-            mouseMoveEvent: this._boundLegendRowMouseMoveEvent(paneId, indicator.name)
           })?.draw(ctx)
-
-          top = rowBottom
         }
+        if (nameHit !== null) {
+          this.drawLegendNameHit(
+            ctx, tooltipStore, paneId, indicator.name,
+            nameHit.x, rowTop, nameHit.width, rowHeight,
+            tooltipStyles.nameTooltip, tooltipStyles.iconTooltip, tooltipTextStyles.family
+          )
+        }
+        // Invisible hitbox so hovering the legend text reveals action icons.
+        // Added after the name hit so reverse dispatch reaches icons and the name first.
+        this.createFigure({
+          name: 'rect',
+          attrs: {
+            x: rowLeft,
+            y: rowTop,
+            width: Math.max(1, maxWidth - rowLeft),
+            height: rowHeight
+          },
+          styles: {
+            style: 'fill',
+            color: 'rgba(0,0,0,0)',
+            borderColor: 'rgba(0,0,0,0)',
+            borderSize: 0,
+            borderStyle: 'solid',
+            borderDashedValue: [2, 2]
+          }
+        }, {
+          mouseMoveEvent: this._boundLegendRowMouseMoveEvent(paneId, indicator.name)
+        })?.draw(ctx)
+
+        top = rowBottom
       })
+
+      if (groupCollapse && legendRows.length > 0) {
+        top = this.drawCollapseChevron(
+          ctx, tooltipStore, paneId, left, top, tooltipStyles.collapse.iconColor
+        )
+      }
     }
     return top
   }
@@ -293,15 +356,7 @@ export default class IndicatorTooltipView extends View<YAxis> {
     ctx: CanvasRenderingContext2D,
     tooltipStore: {
       isCandleLegendExpanded: () => boolean
-      addLegendHitbox: (hitbox: {
-        kind: 'tree_root' | 'gear' | 'remove'
-        paneId: string
-        indicatorName?: string
-        x: number
-        y: number
-        width: number
-        height: number
-      }) => void
+      addLegendHitbox: (hitbox: LegendHitbox) => void
     },
     activeTooltipIcon: Nullable<TooltipIcon>,
     parentCount: number,
@@ -381,12 +436,18 @@ export default class IndicatorTooltipView extends View<YAxis> {
     indicatorName: string,
     left: number,
     prevRowHeight: number,
-    maxWidth: number
+    maxWidth: number,
+    options?: {
+      iconTooltip?: TooltipIconTooltipStyle
+      textFamily?: string
+      gap?: number
+    }
   ): number {
     if (icons.length > 0) {
       const tooltipStore = this.getWidget().getPane().getChart().getChartStore().getTooltipStore()
       let width = 0
       let height = 0
+      const iconGap = options?.gap
       icons.forEach(icon => {
         const {
           marginLeft = 0, marginTop = 0, marginRight = 0, marginBottom = 0,
@@ -394,7 +455,13 @@ export default class IndicatorTooltipView extends View<YAxis> {
           size, fontFamily, icon: text
         } = icon
         ctx.font = createFont(size, 'normal', fontFamily)
-        width += (marginLeft + paddingLeft + ctx.measureText(text).width + paddingRight + marginRight)
+        const contentWidth = paddingLeft + ctx.measureText(legendOutlineName(text) !== null ? '' : text).width + paddingRight
+        const hitWidth = Math.max(24, legendOutlineName(text) !== null ? size + paddingLeft + paddingRight : contentWidth)
+        if (iconGap !== undefined) {
+          width += hitWidth + iconGap
+        } else {
+          width += (marginLeft + paddingLeft + ctx.measureText(text).width + paddingRight + marginRight)
+        }
         height = Math.max(height, marginTop + paddingTop + size + paddingBottom + marginBottom)
       })
       if (coordinate.x + width > maxWidth) {
@@ -414,33 +481,57 @@ export default class IndicatorTooltipView extends View<YAxis> {
         const active = activeIcon?.paneId === paneId && activeIcon?.indicatorName === indicatorName && activeIcon?.iconId === icon.id
         const controlHeight = paddingTop + size + paddingBottom
         ctx.font = createFont(size, 'normal', fontFamily)
-        const textWidth = ctx.measureText(text).width
+        const outline = legendOutlineName(text)
+        const textWidth = outline !== null ? size : ctx.measureText(text).width
         // Emoji glyph metrics disagree between measureText and figure text hit-testing.
         // Use a deterministic rect hit surface (same approach as the candle legend tree root).
         const contentWidth = paddingLeft + textWidth + paddingRight
         const hitWidth = Math.max(24, contentWidth)
         const hitHeight = Math.max(24, controlHeight)
+        const iconGap = options?.gap
         const iconY = centerLegendControlY(coordinate.y, prevRowHeight, hitHeight)
-        const iconX = coordinate.x + marginLeft
+        const iconX = coordinate.x + (iconGap !== undefined ? 0 : marginLeft)
         const textDrawX = iconX + Math.max(0, (hitWidth - contentWidth) / 2)
         const textDrawY = iconY + Math.max(0, (hitHeight - controlHeight) / 2)
+        const ink = active ? activeColor : color
 
-        // Visual glyph only — not registered for events (avoids emoji hit-test drift).
-        this.createFigure({
-          name: 'text',
-          attrs: { text, x: textDrawX, y: textDrawY },
-          styles: {
-            paddingLeft,
-            paddingTop,
-            paddingRight,
-            paddingBottom,
-            color: active ? activeColor : color,
-            size,
-            family: fontFamily,
-            backgroundColor: active ? activeBackgroundColor : backgroundColor
-          }
-        })?.draw(ctx)
+        if (active && !isTransparent(activeBackgroundColor)) {
+          this.createFigure({
+            name: 'rect',
+            attrs: { x: iconX, y: iconY, width: hitWidth, height: hitHeight },
+            styles: {
+              style: PolygonType.Fill,
+              color: activeBackgroundColor,
+              borderColor: 'transparent',
+              borderSize: 0,
+              borderRadius: 4,
+              borderStyle: LineType.Solid,
+              borderDashedValue: [2, 2]
+            }
+          })?.draw(ctx)
+        }
 
+        if (outline !== null) {
+          this.drawOutlineIcon(ctx, outline, iconX + (hitWidth - size) / 2, iconY + (hitHeight - size) / 2, size, ink)
+        } else {
+          // App-supplied glyph. Hit testing stays on the rect below.
+          this.createFigure({
+            name: 'text',
+            attrs: { text, x: textDrawX, y: textDrawY },
+            styles: {
+              paddingLeft,
+              paddingTop,
+              paddingRight,
+              paddingBottom,
+              color: ink,
+              size,
+              family: fontFamily,
+              backgroundColor: active ? 'transparent' : backgroundColor
+            }
+          })?.draw(ctx)
+        }
+
+        // Hit surface after the glyph so reverse dispatch finds the button before later row hovers.
         this.createFigure({
           name: 'rect',
           attrs: {
@@ -462,9 +553,10 @@ export default class IndicatorTooltipView extends View<YAxis> {
           mouseMoveEvent: this._boundIconMouseMoveEvent({ paneId, indicatorName, iconId: icon.id })
         })?.draw(ctx)
 
-        if (icon.id === LEGEND_GEAR_ICON_ID || icon.id === LEGEND_REMOVE_ICON_ID) {
+        const hitKind = this.legendIconHitboxKind(icon.id)
+        if (hitKind !== null) {
           tooltipStore.addLegendHitbox({
-            kind: icon.id === LEGEND_GEAR_ICON_ID ? 'gear' : 'remove',
+            kind: hitKind,
             paneId,
             indicatorName,
             x: iconX,
@@ -474,7 +566,13 @@ export default class IndicatorTooltipView extends View<YAxis> {
           })
         }
 
-        coordinate.x += (marginLeft + hitWidth + marginRight)
+        if (active && isString(icon.tooltip) && icon.tooltip.length > 0 && options?.iconTooltip !== undefined) {
+          this.drawIconTooltipBubble(
+            ctx, icon.tooltip, iconX, iconY, hitWidth, options.iconTooltip, options.textFamily ?? fontFamily
+          )
+        }
+
+        coordinate.x += iconGap !== undefined ? hitWidth + iconGap : (marginLeft + hitWidth + marginRight)
       })
     }
     return prevRowHeight
@@ -655,5 +753,352 @@ export default class IndicatorTooltipView extends View<YAxis> {
       }
     })
     return [leftIcons, middleIcons, rightIcons]
+  }
+
+  /** A legend row exists when the tooltip has a name or at least one value. */
+  private tooltipDataRendersLegendRow (data: { name: string, values: TooltipLegend[] }): boolean {
+    return data.name.length > 0 || data.values.length > 0
+  }
+
+  protected actionBarPaints (bar: TooltipActionBarStyle): boolean {
+    const fill = !isTransparent(bar.backgroundColor)
+    const stroke = bar.borderSize > 0 && !isTransparent(bar.borderColor)
+    return fill || stroke
+  }
+
+  private legendIconHitboxKind (iconId: string): LegendHitbox['kind'] | null {
+    switch (iconId) {
+      case LEGEND_GEAR_ICON_ID: {
+        return 'gear'
+      }
+      case LEGEND_REMOVE_ICON_ID: {
+        return 'remove'
+      }
+      case LEGEND_EYE_ICON_ID: {
+        return 'eye'
+      }
+      case LEGEND_MORE_ICON_ID: {
+        return 'more'
+      }
+      default: {
+        return null
+      }
+    }
+  }
+
+  protected measureTooltipLegendsWidth (
+    ctx: CanvasRenderingContext2D,
+    legends: TooltipLegend[],
+    styles: TooltipTextStyle
+  ): number {
+    if (legends.length === 0) {
+      return 0
+    }
+    const { marginLeft, marginRight, size, family, weight } = styles
+    ctx.font = createFont(size, weight, family)
+    let width = 0
+    legends.forEach(data => {
+      const title = data.title as TooltipLegendChild
+      const value = data.value as TooltipLegendChild
+      width += marginLeft + ctx.measureText(title.text).width + ctx.measureText(value.text).width + marginRight
+    })
+    return width
+  }
+
+  protected measureTooltipIconsWidth (
+    ctx: CanvasRenderingContext2D,
+    icons: TooltipIconStyle[],
+    gap?: number
+  ): number {
+    if (icons.length === 0) {
+      return 0
+    }
+    let width = 0
+    icons.forEach(icon => {
+      const paddingLeft = icon.paddingLeft
+      const paddingRight = icon.paddingRight
+      const outline = legendOutlineName(icon.icon)
+      ctx.font = createFont(icon.size, 'normal', icon.fontFamily)
+      const glyph = outline !== null ? icon.size : ctx.measureText(icon.icon).width
+      const hitWidth = Math.max(24, paddingLeft + glyph + paddingRight)
+      if (gap !== undefined) {
+        width += hitWidth + gap
+      } else {
+        width += icon.marginLeft + hitWidth + icon.marginRight
+      }
+    })
+    return width
+  }
+
+  protected drawActionBar (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    bar: TooltipActionBarStyle
+  ): void {
+    if (width <= 0 || height <= 0 || !this.actionBarPaints(bar)) {
+      return
+    }
+    const fill = !isTransparent(bar.backgroundColor)
+    const stroke = bar.borderSize > 0 && !isTransparent(bar.borderColor)
+    this.createFigure({
+      name: 'rect',
+      attrs: {
+        x: x - bar.paddingX,
+        y,
+        width: width + bar.paddingX * 2,
+        height
+      },
+      styles: {
+        style: fill && stroke ? PolygonType.StrokeFill : (stroke ? PolygonType.Stroke : PolygonType.Fill),
+        color: bar.backgroundColor,
+        borderColor: bar.borderColor,
+        borderSize: bar.borderSize,
+        borderRadius: bar.borderRadius,
+        borderStyle: LineType.Solid,
+        borderDashedValue: [2, 2]
+      }
+    })?.draw(ctx)
+  }
+
+  private drawOutlineIcon (
+    ctx: CanvasRenderingContext2D,
+    icon: LegendOutlineName,
+    x: number,
+    y: number,
+    size: number,
+    color: string
+  ): void {
+    legendOutlineFigures(icon, x, y, size).forEach(figure => {
+      if (figure.name === 'line') {
+        this.createFigure({
+          name: 'line',
+          attrs: { coordinates: figure.coordinates },
+          styles: { color, size: 1.25, style: LineType.Solid }
+        })?.draw(ctx)
+        return
+      }
+      if (figure.name === 'circle') {
+        this.createFigure({
+          name: 'circle',
+          attrs: { x: figure.x, y: figure.y, r: figure.r },
+          styles: {
+            style: PolygonType.Stroke,
+            color: 'transparent',
+            borderColor: color,
+            borderSize: 1.25,
+            borderStyle: LineType.Solid,
+            borderDashedValue: [2, 2]
+          }
+        })?.draw(ctx)
+        return
+      }
+      this.createFigure({
+        name: 'polygon',
+        attrs: { coordinates: figure.coordinates },
+        styles: {
+          style: PolygonType.Stroke,
+          color: 'transparent',
+          borderColor: color,
+          borderSize: 1.25,
+          borderStyle: LineType.Solid,
+          borderDashedValue: [2, 2]
+        }
+      })?.draw(ctx)
+    })
+  }
+
+  protected drawIconTooltipBubble (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    anchorX: number,
+    anchorY: number,
+    anchorWidth: number,
+    styles: TooltipIconTooltipStyle,
+    family: string
+  ): void {
+    ctx.font = createFont(styles.size, 'normal', family)
+    const textWidth = ctx.measureText(text).width
+    const boxWidth = textWidth + styles.paddingX * 2
+    const boxHeight = styles.size + styles.paddingY * 2
+    const x = anchorX + anchorWidth / 2 - boxWidth / 2
+    const y = anchorY - boxHeight - 4
+    this.createFigure({
+      name: 'rect',
+      attrs: { x, y, width: boxWidth, height: boxHeight },
+      styles: {
+        style: PolygonType.Fill,
+        color: styles.backgroundColor,
+        borderColor: 'transparent',
+        borderSize: 0,
+        borderRadius: styles.borderRadius,
+        borderStyle: LineType.Solid,
+        borderDashedValue: [2, 2]
+      }
+    })?.draw(ctx)
+    this.createFigure({
+      name: 'text',
+      attrs: { x: x + styles.paddingX, y: y + styles.paddingY, text },
+      styles: { color: styles.color, size: styles.size, family, weight: 'normal' }
+    })?.draw(ctx)
+  }
+
+  private drawLegendNameHit (
+    ctx: CanvasRenderingContext2D,
+    tooltipStore: { addLegendHitbox: (hitbox: LegendHitbox) => void, getActiveIcon: () => Nullable<TooltipIcon> },
+    paneId: string,
+    indicatorName: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    nameTooltip: string | undefined,
+    iconTooltip: TooltipIconTooltipStyle,
+    family: string
+  ): void {
+    this.createFigure({
+      name: 'rect',
+      attrs: { x, y, width, height },
+      styles: {
+        style: PolygonType.Fill,
+        color: 'rgba(0,0,0,0)',
+        borderColor: 'rgba(0,0,0,0)',
+        borderSize: 0,
+        borderStyle: LineType.Solid,
+        borderDashedValue: [2, 2]
+      }
+    }, {
+      mouseClickEvent: this._boundIconClickEvent({ paneId, indicatorName, iconId: LEGEND_NAME_ICON_ID }),
+      mouseMoveEvent: this._boundIconMouseMoveEvent({ paneId, indicatorName, iconId: LEGEND_NAME_ICON_ID })
+    })?.draw(ctx)
+    tooltipStore.addLegendHitbox({
+      kind: 'name',
+      paneId,
+      indicatorName,
+      x,
+      y,
+      width,
+      height
+    })
+    const active = tooltipStore.getActiveIcon()
+    if (
+      active?.paneId === paneId &&
+      active?.indicatorName === indicatorName &&
+      active?.iconId === LEGEND_NAME_ICON_ID &&
+      isString(nameTooltip) &&
+      nameTooltip.length > 0
+    ) {
+      this.drawIconTooltipBubble(ctx, nameTooltip, x, y, width, iconTooltip, family)
+    }
+  }
+
+  private drawCollapseChevron (
+    ctx: CanvasRenderingContext2D,
+    tooltipStore: { addLegendHitbox: (hitbox: LegendHitbox) => void },
+    paneId: string,
+    left: number,
+    top: number,
+    iconColor: string
+  ): number {
+    const size = 14
+    const hitWidth = 24
+    const hitHeight = 20
+    this.createFigure({
+      name: 'rect',
+      attrs: { x: left, y: top, width: hitWidth, height: hitHeight },
+      styles: {
+        style: PolygonType.Fill,
+        color: 'rgba(0,0,0,0)',
+        borderColor: 'rgba(0,0,0,0)',
+        borderSize: 0,
+        borderStyle: LineType.Solid,
+        borderDashedValue: [2, 2]
+      }
+    }, {
+      mouseClickEvent: this._boundPaneCollapseClick(paneId),
+      mouseMoveEvent: this._boundPaneCollapseMove(paneId, LEGEND_TREE_ROOT_NAME, 'collapse')
+    })?.draw(ctx)
+    this.drawOutlineIcon(ctx, 'chevron-up', left + (hitWidth - size) / 2, top + (hitHeight - size) / 2, size, iconColor)
+    tooltipStore.addLegendHitbox({
+      kind: 'collapse',
+      paneId,
+      indicatorName: LEGEND_TREE_ROOT_NAME,
+      x: left,
+      y: top,
+      width: hitWidth,
+      height: hitHeight
+    })
+    return top + hitHeight
+  }
+
+  private drawCollapsePill (
+    ctx: CanvasRenderingContext2D,
+    tooltipStore: { addLegendHitbox: (hitbox: LegendHitbox) => void },
+    paneId: string,
+    count: number,
+    left: number,
+    top: number,
+    textStyles: TooltipTextStyle,
+    collapse: { iconColor: string, pillBorderColor: string }
+  ): number {
+    const label = String(count)
+    ctx.font = createFont(textStyles.size, textStyles.weight, textStyles.family)
+    const textWidth = ctx.measureText(label).width
+    const iconSize = 12
+    const paddingX = 8
+    const gap = 4
+    const height = Math.max(22, textStyles.size + 8)
+    const width = paddingX + iconSize + gap + textWidth + paddingX
+    const radius = height / 2
+    this.createFigure({
+      name: 'rect',
+      attrs: { x: left, y: top, width, height },
+      styles: {
+        style: PolygonType.Stroke,
+        color: 'transparent',
+        borderColor: collapse.pillBorderColor,
+        borderSize: 1,
+        borderRadius: radius,
+        borderStyle: LineType.Solid,
+        borderDashedValue: [2, 2]
+      }
+    }, {
+      mouseClickEvent: this._boundPaneCollapseClick(paneId),
+      mouseMoveEvent: this._boundPaneCollapseMove(paneId, LEGEND_TREE_ROOT_NAME, 'pill')
+    })?.draw(ctx)
+    this.drawOutlineIcon(
+      ctx,
+      'chevron-down',
+      left + paddingX,
+      top + (height - iconSize) / 2,
+      iconSize,
+      collapse.iconColor
+    )
+    this.createFigure({
+      name: 'text',
+      attrs: {
+        x: left + paddingX + iconSize + gap,
+        y: top + (height - textStyles.size) / 2,
+        text: label
+      },
+      styles: {
+        color: textStyles.color,
+        size: textStyles.size,
+        family: textStyles.family,
+        weight: textStyles.weight
+      }
+    })?.draw(ctx)
+    tooltipStore.addLegendHitbox({
+      kind: 'pill',
+      paneId,
+      indicatorName: LEGEND_TREE_ROOT_NAME,
+      x: left,
+      y: top,
+      width,
+      height
+    })
+    return top + height + 2
   }
 }

@@ -739,7 +739,8 @@ export default class ChartImp implements Chart {
     this._chartStore.getIndicatorStore().override(override, paneId ?? null).then(
       ([onlyUpdateFlag, resizeFlag]) => {
         if (onlyUpdateFlag || resizeFlag) {
-          this.adjustPaneViewport(false, resizeFlag, true, resizeFlag)
+          // Visibility and other non-calc overrides still change the y-range.
+          this.adjustPaneViewport(false, resizeFlag, true, resizeFlag || onlyUpdateFlag)
           callback?.()
         }
       }
